@@ -1,0 +1,85 @@
+plugins {
+	id 'org.springframework.boot' version '4.1.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'java'
+	id 'jacoco'
+}
+
+group = 'com.leancore.chat'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(26)
+	}
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	springAiVersion = "2.0.1"
+	mapstructVersion = "1.6.3"
+	lombokVersion = "1.18.48"
+	lombokMapstructBindingVersion = "0.2.0"
+	openApiVersion = "3.1.1"
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+	}
+}
+
+dependencies {
+	implementation "org.springframework.boot:spring-boot-starter-webflux"
+	implementation "org.springframework.boot:spring-boot-starter-validation"
+	implementation "org.springframework.boot:spring-boot-starter-data-r2dbc"
+	implementation "org.springframework.ai:spring-ai-starter-model-anthropic"
+	implementation "org.springframework.ai:spring-ai-starter-model-openai"
+	runtimeOnly "org.postgresql:r2dbc-postgresql"
+	developmentOnly "org.springframework.boot:spring-boot-devtools"
+
+	implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+	compileOnly "org.projectlombok:lombok:${lombokVersion}"
+	annotationProcessor "org.projectlombok:lombok-mapstruct-binding:${lombokMapstructBindingVersion}"
+	annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
+	annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+	implementation "org.springdoc:springdoc-openapi-starter-webflux-ui:${openApiVersion}"
+
+	testImplementation "org.springframework.boot:spring-boot-starter-test"
+	testImplementation "org.springframework.boot:spring-boot-webflux-test"
+	testImplementation "org.springframework.boot:spring-boot-testcontainers"
+	testImplementation "io.projectreactor:reactor-test"
+	testImplementation "org.testcontainers:testcontainers-junit-jupiter"
+	testImplementation "org.testcontainers:testcontainers-postgresql"
+	testImplementation "org.testcontainers:testcontainers-r2dbc"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+// Unit + integration tests. The LLM evaluation suite (tag "llm") calls the real Anthropic API,
+// so it only runs through `./gradlew llmTest` with ANTHROPIC_API_KEY set.
+tasks.named('test') {
+	useJUnitPlatform {
+		excludeTags 'llm'
+	}
+	finalizedBy jacocoTestReport
+}
+
+tasks.register('llmTest', Test) {
+	description = 'Runs the bot scope evaluation against the real Anthropic API.'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'llm'
+	}
+}

@@ -1,0 +1,75 @@
+# Support chat: PostgreSQL + backend (Spring WebFlux + Spring AI) + two Angular apps.
+#   docker compose up --build          -> everything
+#   docker compose up -d postgres      -> only the database (run the backend with ./gradlew bootRun)
+# Host ports can be changed in .env (see .env.example) if they clash with other projects.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: leancore-chat-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chat_db
+      POSTGRES_USER: chat
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-chat}
+    ports:
+      # Published on purpose: connect with any SQL client to inspect conversations and messages.
+      - "${DB_HOST_PORT:-5432}:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat -d chat_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/java-service.Dockerfile
+    container_name: leancore-chat-backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: chat_db
+      DB_USERNAME: chat
+      DB_PASSWORD: ${DB_PASSWORD:-chat}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      # Fallback provider: used when Anthropic has no key, fails or times out.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      ALLOWED_ORIGINS: http://localhost:${USER_APP_PORT:-4200},http://localhost:${ADMIN_APP_PORT:-4300}
+    ports:
+      - "${BACKEND_HOST_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  user-app:
+    build:
+      context: ./frontend
+      args:
+        APP: user-app
+    container_name: leancore-chat-user-app
+    restart: unless-stopped
+    ports:
+      - "${USER_APP_PORT:-4200}:80"
+    depends_on:
+      - backend
+
+  admin-app:
+    build:
+      context: ./frontend
+      args:
+        APP: admin-app
+    container_name: leancore-chat-admin-app
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_APP_PORT:-4300}:80"
+    depends_on:
+      - backend
+
+volumes:
+  pg-data:
