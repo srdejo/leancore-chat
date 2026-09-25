@@ -1,0 +1,57 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: chat-api
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:chat_db}
+    username: ${DB_USERNAME:chat}
+    password: ${DB_PASSWORD:chat}
+  sql:
+    init:
+      mode: always
+  ai:
+    anthropic:
+      # Spring AI needs a non-empty value to start; the bot adapter checks chat.bot.api-key
+      # and stays disabled (no network calls) when the real key is missing.
+      api-key: ${ANTHROPIC_API_KEY:missing}
+      max-retries: 1
+    openai:
+      api-key: ${OPENAI_API_KEY:missing}
+      max-retries: 1
+
+chat:
+  websocket:
+    ping-interval: 25s
+  bot:
+    # Providers are tried in this order: Anthropic first, OpenAI when Anthropic has no key, fails or times out.
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      model: ${ANTHROPIC_MODEL:claude-sonnet-5}
+      temperature: 0.2
+      max-tokens: 400
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      # Blank = the Spring AI default model for OpenAI (logged at startup).
+      model: ${OPENAI_MODEL:}
+      # gpt-5 models are reasoning models: no custom temperature, and max tokens (sent as
+      # max_completion_tokens) also covers the reasoning, so it needs more room than the visible reply.
+      max-tokens: 2000
+      reasoning-effort: low
+    name: Asistente
+    provider-timeout: 12s
+    provider-cooldown: 30s
+    timeout: 25s
+    history-size: 20
+    max-concurrent-calls: 8
+    recovery-window: 24h
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.leancore.chat: INFO
